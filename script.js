@@ -27,6 +27,9 @@
   const camToggle    = $('camToggle');
   const video        = $('cam');
 
+  const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+  const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+
   // --------------- State ---------------
   const state = {
     // Face tracking
@@ -245,77 +248,77 @@
 
   // --------------- Emotion Detection ---------------
   function detectEmotion(lm) {
-    // Analyze facial landmarks to detect emotions
-    // Using mouth & eye positions relative to face
-    
-    const noseTip    = lm[1];
-    const leftEye    = lm[33];
-    const rightEye   = lm[263];
-    const mouth      = lm[61];  // mouth center
-    const mouthLeft  = lm[61];
+    const leftEye = lm[33];
+    const rightEye = lm[263];
+    const mouthLeft = lm[61];
     const mouthRight = lm[291];
-    const chin       = lm[152];
-    const jawLeft    = lm[205];
-    const jawRight   = lm[425];
-    
-    // Calculate distances
-    const eyeDistance = Math.hypot(leftEye.x - rightEye.x, leftEye.y - rightEye.y);
-    const mouthWidth = Math.hypot(mouthRight.x - mouthLeft.x, mouthRight.y - mouthLeft.y);
-    const mouthOpenness = Math.max(0, mouth.y - noseTip.y) * 100; // vertical mouth opening
-    const jawWidth = Math.hypot(jawRight.x - jawLeft.x, jawRight.y - jawLeft.y);
-    
-    // Eye squintness (if eyes are squinted/closed)
-    const leftEyeOpenness = Math.max(0, lm[159].y - lm[145].y); // upper-lower eyelid
-    const rightEyeOpenness = Math.max(0, lm[386].y - lm[374].y);
-    const eyeOpen = (leftEyeOpenness + rightEyeOpenness) / 2;
-    
-    // Eyebrow position (higher = surprised, lower = angry/sad)
-    const leftBrow = lm[21].y;   // left eyebrow
-    const rightBrow = lm[251].y; // right eyebrow
-    const browHeight = (leftBrow + rightBrow) / 2;
-    
-    // Mouth curvature detection
-    const mouthCornerLeft = lm[61];
-    const mouthCornerRight = lm[291];
-    const mouthTopCenter = lm[13];
-    const mouthBottomCenter = lm[14];
-    
-    let emotion = 'neutral';
-    
-    // Laugh detection: big mouth open + eye squint
-    if (mouthOpenness > 3 && mouthWidth > eyeDistance * 0.6 && eyeOpen < 5) {
-      emotion = 'laugh';
+    const mouthTop = lm[13];
+    const mouthBottom = lm[14];
+    const leftEyeTop = lm[159];
+    const leftEyeBottom = lm[145];
+    const rightEyeTop = lm[386];
+    const rightEyeBottom = lm[374];
+    const leftBrow = lm[21];
+    const rightBrow = lm[251];
+
+    const eyeDistance = Math.max(0.001, distance(leftEye, rightEye));
+    const mouthWidth = distance(mouthLeft, mouthRight);
+    const mouthOpen = distance(mouthTop, mouthBottom) / eyeDistance;
+    const eyeOpen = ((leftEyeTop.y - leftEyeBottom.y) + (rightEyeTop.y - rightEyeBottom.y)) / (2 * eyeDistance);
+    const browLift = (((leftEyeTop.y - leftBrow.y) + (rightEyeTop.y - rightBrow.y)) / 2) / eyeDistance;
+    const browSkew = Math.abs((leftEyeTop.y - leftBrow.y) - (rightEyeTop.y - rightBrow.y)) / eyeDistance;
+    const mouthCenterY = (mouthTop.y + mouthBottom.y) / 2;
+    const mouthCornerLift = (mouthCenterY - ((mouthLeft.y + mouthRight.y) / 2)) / eyeDistance;
+    const mouthSmileWidth = mouthWidth / eyeDistance;
+
+    if (eyeOpen < 0.08) {
+      return 'sleep';
     }
-    // Sad detection: mouth corners down, eyebrows down
-    else if (mouthBottomCenter.y > mouthTopCenter.y + 0.03 && browHeight > 0.3) {
-      emotion = 'sad';
+    if (mouthOpen > 0.34 && eyeOpen > 0.12 && browLift > 0.09) {
+      return 'wide';
     }
-    // Confused: eyebrows raised, mouth neutral/pursed
-    else if (browHeight < 0.25 && mouthOpenness < 1.5) {
-      emotion = 'confused';
+    if (mouthOpen > 0.30 && eyeOpen < 0.10) {
+      return 'laugh';
     }
-    // Angry: eyebrows down & together, mouth down
-    else if (browHeight > 0.32 && mouthBottomCenter.y > mouthTopCenter.y) {
-      emotion = 'angry';
+    if (mouthCornerLift > 0.03 && eyeOpen > 0.07 && browLift > 0.03) {
+      return 'love';
     }
-    // Surprised: eyes wide open, eyebrows up, mouth open
-    else if (eyeOpen > 8 && browHeight < 0.22 && mouthOpenness > 2) {
-      emotion = 'wide'; // existing surprise expression
+    if (mouthCornerLift < -0.02 && eyeOpen < 0.11 && browLift < 0.05) {
+      return 'sad';
     }
-    // Love: smiling with relaxed eyes
-    else if (mouthOpenness > 1.5 && mouthOpenness < 3.5 && eyeOpen > 6) {
-      emotion = 'love';
+    if (browSkew > 0.05 && mouthOpen < 0.18) {
+      return 'confused';
     }
-    // Smile: standard smile
-    else if (mouthOpenness > 1.5 && eyeOpen > 5) {
-      emotion = 'smile';
+    if (browLift < 0.02 && mouthCornerLift < -0.01 && mouthOpen < 0.18) {
+      return 'angry';
     }
-    
-    return emotion;
+    if (mouthCornerLift > 0.01 && mouthSmileWidth > 0.95) {
+      return 'smile';
+    }
+
+    return 'neutral';
   }
 
   // --------------- Voice Recognition ---------------
   let recognitionActive = false;
+  let voiceRecognition = null;
+  let voiceRestartTimer = null;
+
+  function startVoiceRecognition() {
+    if (!voiceRecognition || recognitionActive) return;
+    try {
+      voiceRecognition.start();
+    } catch {}
+  }
+
+  function scheduleVoiceRestart(delayMs = 1200) {
+    if (!voiceRecognition) return;
+    clearTimeout(voiceRestartTimer);
+    voiceRestartTimer = setTimeout(() => {
+      startVoiceRecognition();
+    }, delayMs);
+  }
+
   function initVoiceRecognition() {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
@@ -343,32 +346,28 @@
     
     recognition.onerror = () => {
       recognitionActive = false;
-      setTimeout(() => {
-        if (state.facePresent) recognition.start();
-      }, 1000);
+      scheduleVoiceRestart(1200);
     };
     
     recognition.onend = () => {
       recognitionActive = false;
-      if (state.facePresent) {
-        try { recognition.start(); } catch {}
-      }
+      scheduleVoiceRestart(400);
     };
     
     return recognition;
   }
   
-  let voiceRecognition = null;
-  
   function handleVoiceCommand(transcript) {
-    if (transcript.includes('time')) {
+    const normalized = transcript.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+
+    if (/\btime\b/.test(normalized)) {
       showHello(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), 5000);
     }
-    else if (transcript.includes('weather')) {
+    else if (/\b(weather|forecast|temperature|rain|sunny|cloudy)\b/.test(normalized)) {
       showHello('Fetching weather...', 2000);
       fetchWeather();
     }
-    else if (transcript.includes('hello') || transcript.includes('hi')) {
+    else if (/\b(hello|hi|hey)\b/.test(normalized)) {
       showHello('Hey there! 👋', 2000);
     }
   }
@@ -597,17 +596,12 @@
 
   // --------------- Boot ---------------
   async function boot() {
+    document.body.classList.add('matrix-mode');
     initQuote();
     updateClock();
     setInterval(updateClock, 1000);
     setMouth('neutral');
     requestAnimationFrame(loop);
-    
-    // Initialize voice recognition
-    voiceRecognition = initVoiceRecognition();
-    if (voiceRecognition) {
-      try { voiceRecognition.start(); } catch {}
-    }
 
     // Wait briefly for MediaPipe scripts to load
     let tries = 0;
@@ -624,6 +618,12 @@
     startOverlay.classList.add('hidden');
     app.classList.add('active');
     app.setAttribute('aria-hidden', 'false');
+
+    voiceRecognition = initVoiceRecognition();
+    if (voiceRecognition) {
+      startVoiceRecognition();
+    }
+
     await boot();
   });
 
