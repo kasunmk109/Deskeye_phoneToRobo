@@ -2,7 +2,7 @@
   "name": "DeskEye – AI Desk Companion",
   "short_name": "DeskEye",
   "description": "AI animated desktop companion with face-tracking eyes",
-  "start_url": "./index.html",
+  "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
