@@ -1,5 +1,5 @@
-// DeskEye – lightweight service worker (cache-first for app shell)
-const CACHE_NAME = 'deskeye-v1';
+// DeskEye – lightweight service worker (network-first for app shell)
+const CACHE_NAME = 'deskeye-v2';
 const APP_SHELL = [
   './',
   './index.html',
@@ -33,6 +33,20 @@ self.addEventListener('fetch', (e) => {
     e.respondWith(fetch(e.request).catch(() => caches.match(e.request)));
     return;
   }
+
+  if (e.request.mode === 'navigate' || APP_SHELL.some((asset) => url.pathname.endsWith(asset.replace('./', '')))) {
+    e.respondWith(
+      fetch(e.request)
+        .then((response) => {
+          const cloned = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(e.request, cloned));
+          return response;
+        })
+        .catch(() => caches.match(e.request).then((cached) => cached || caches.match('./index.html')))
+    );
+    return;
+  }
+
   e.respondWith(
     caches.match(e.request).then(cached => cached || fetch(e.request))
   );

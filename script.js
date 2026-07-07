@@ -24,8 +24,33 @@
   const pupilR       = $('pupilR');
   const eyeL         = $('eyeL');
   const eyeR         = $('eyeR');
+  const vectorBtn    = $('vectorBtn');
+  const vectorSheet  = $('vectorSheet');
+  const vectorActions = $('vectorActions');
+  const vectorTimerInput = $('vectorTimerInput');
+  const vectorTimerUnit = $('vectorTimerUnit');
+  const vectorTimerStart = $('vectorTimerStart');
+  const vectorTimerCancel = $('vectorTimerCancel');
+  const vectorTimerStatus = $('vectorTimerStatus');
+  const vectorLive = $('vectorLive');
+  const vectorPhotoPreview = $('vectorPhotoPreview');
+  const blackjackStatus = $('blackjackStatus');
+  const blackjackHands = $('blackjackHands');
+  const blackjackDeal = $('blackjackDeal');
+  const blackjackHit = $('blackjackHit');
+  const blackjackStand = $('blackjackStand');
+  const blackjackReset = $('blackjackReset');
+  const cubeFind = $('cubeFind');
+  const cubeCharge = $('cubeCharge');
+  const cubeInspect = $('cubeInspect');
+  const cubeDance = $('cubeDance');
+  const cubeStatus = $('cubeStatus');
+  const vectorCategories = $('vectorCategories');
   const camToggle    = $('camToggle');
   const video        = $('cam');
+
+  const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+  const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
   // --------------- State ---------------
   const state = {
@@ -47,6 +72,8 @@
     // Modes
     mood: 'night',
     sleeping: false,
+    docked: false,
+    exploring: false,
     cameraOn: true,
     greetingShown: false,
 
@@ -56,7 +83,18 @@
     lastQuoteChange: Date.now(),
     currentQuoteIndex: 0,
     helloUntil: 0,
-    widenUntil: 0
+    widenUntil: 0,
+    timerEndsAt: 0,
+    timerTimeoutId: null,
+    timerTickId: null,
+    exploreUntil: 0,
+    blackjack: {
+      active: false,
+      player: [],
+      dealer: [],
+      finished: false
+    },
+    cubeMode: 'idle'
   };
 
   // --------------- Settings (localStorage) ---------------
@@ -94,6 +132,79 @@
     "Build something you believe in."
   ];
 
+  const VECTOR_QUICK_ACTIONS = [
+    { id: 'greet', label: 'Greet', icon: '👋' },
+    { id: 'time', label: 'Time', icon: '🕒' },
+    { id: 'timer', label: 'Timer', icon: '⏱️' },
+    { id: 'photo', label: 'Photo', icon: '📸' },
+    { id: 'dock', label: 'Dock', icon: '🧲' },
+    { id: 'explore', label: 'Explore', icon: '🗺️' },
+    { id: 'blackjack', label: 'Blackjack', icon: '🂡' },
+    { id: 'fireworks', label: 'Fireworks', icon: '🎇' },
+    { id: 'wheelstand', label: 'Wheelstand', icon: '🤸' },
+    { id: 'cube', label: 'Cube', icon: '🟦' },
+    { id: 'celebrate', label: 'Celebrate', icon: '🎆' },
+    { id: 'sleep', label: 'Sleep', icon: '💤' }
+  ];
+
+  const VECTOR_SECTIONS = [
+    {
+      title: 'Voice commands',
+      items: [
+        'Greetings and identity phrases',
+        'Weather and time queries',
+        'Set or cancel timers',
+        'Take photos',
+        'Move, turn, and look at you',
+        'Explore controls and navigation prompts',
+        'Sleep and dock commands',
+        'Praise, scolding, and personality replies',
+        'Cube-related actions',
+        'Music listening controls',
+        'Blackjack, fireworks, wheelstand, and celebration effects',
+        'Trivia-style question answering'
+      ]
+    },
+    {
+      title: 'SDK components',
+      items: [
+        'Animation',
+        'Audio',
+        'Behavior',
+        'Camera',
+        'Control',
+        'Event',
+        'Face',
+        'Motor',
+        'NavMap',
+        'Photo',
+        'Screen',
+        'Vision',
+        'World',
+        'Authentication',
+        'Object and event data types'
+      ]
+    },
+    {
+      title: 'Recognized objects',
+      items: [
+        'Charger',
+        'Light Cube',
+        'Custom objects',
+        'Faces'
+      ]
+    },
+    {
+      title: 'Practical meaning',
+      items: [
+        'Vector can see, hear, and recognize people and objects',
+        'It can move around the world and react to its environment',
+        'It can interact with its charger and cube',
+        'It can run SDK-driven behaviors and app-driven interactions'
+      ]
+    }
+  ];
+
   function initQuote() {
     state.currentQuoteIndex = Math.floor(Math.random() * QUOTES.length);
     setQuote(QUOTES[state.currentQuoteIndex]);
@@ -109,6 +220,470 @@
     state.currentQuoteIndex = (state.currentQuoteIndex + 1) % QUOTES.length;
     setQuote(QUOTES[state.currentQuoteIndex]);
     state.lastQuoteChange = Date.now();
+  }
+
+  function addVectorLog(message) {
+    if (!vectorLive) return;
+    const entry = document.createElement('div');
+    entry.className = 'vector-log__entry';
+    entry.textContent = message;
+    vectorLive.prepend(entry);
+
+    while (vectorLive.children.length > 5) {
+      vectorLive.removeChild(vectorLive.lastElementChild);
+    }
+  }
+
+  function formatDuration(ms) {
+    const totalSeconds = Math.ceil(Math.max(0, ms) / 1000);
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    if (minutes > 0) {
+      return `${minutes}m ${String(seconds).padStart(2, '0')}s`;
+    }
+    return `${seconds}s`;
+  }
+
+  function updateTimerStatus() {
+    if (!vectorTimerStatus) return;
+    if (!state.timerEndsAt) {
+      vectorTimerStatus.textContent = 'No timer set';
+      return;
+    }
+
+    const remaining = state.timerEndsAt - Date.now();
+    vectorTimerStatus.textContent = remaining > 0 ? `Time left: ${formatDuration(remaining)}` : 'Timer complete';
+  }
+
+  function clearVectorTimer() {
+    if (state.timerTimeoutId) {
+      clearTimeout(state.timerTimeoutId);
+      state.timerTimeoutId = null;
+    }
+    if (state.timerTickId) {
+      clearInterval(state.timerTickId);
+      state.timerTickId = null;
+    }
+    state.timerEndsAt = 0;
+    updateTimerStatus();
+  }
+
+  function startVectorTimer(durationMs) {
+    clearVectorTimer();
+    state.timerEndsAt = Date.now() + durationMs;
+    updateTimerStatus();
+    addVectorLog(`Timer started for ${formatDuration(durationMs)}`);
+    showHello(`Timer set for ${formatDuration(durationMs)}`, 2400);
+
+    state.timerTickId = setInterval(updateTimerStatus, 1000);
+    state.timerTimeoutId = setTimeout(() => {
+      clearVectorTimer();
+      addVectorLog('Timer finished');
+      showHello('Timer complete', 3200);
+      setMouth('laugh');
+      state.widenUntil = performance.now() + 450;
+      doBlink();
+    }, durationMs);
+  }
+
+  function getTimerDurationMs() {
+    const rawValue = Number.parseInt(vectorTimerInput ? vectorTimerInput.value : '5', 10);
+    const safeValue = Number.isFinite(rawValue) && rawValue > 0 ? rawValue : 5;
+    const unit = vectorTimerUnit ? vectorTimerUnit.value : 'minutes';
+    return unit === 'seconds' ? safeValue * 1000 : safeValue * 60 * 1000;
+  }
+
+  function captureVectorPhoto() {
+    if (!video || video.videoWidth === 0 || video.videoHeight === 0) {
+      showHello('Camera is still warming up', 2400);
+      addVectorLog('Photo capture skipped: camera not ready');
+      return;
+    }
+
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+
+    const context = canvas.getContext('2d');
+    if (!context) {
+      showHello('Photo capture unavailable', 2400);
+      return;
+    }
+
+    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const photoUrl = canvas.toDataURL('image/png');
+    if (vectorPhotoPreview) {
+      vectorPhotoPreview.hidden = false;
+      vectorPhotoPreview.src = photoUrl;
+    }
+
+    addVectorLog('Captured a photo from the live camera feed');
+    showHello('Photo captured', 2200);
+    setMouth('smile');
+  }
+
+  function enterDockMode() {
+    state.docked = true;
+    state.exploring = false;
+    state.exploreUntil = 0;
+    clearVectorTimer();
+    addVectorLog('Dock mode enabled');
+    showHello('Dock mode on', 2200);
+    faceStatus.textContent = 'Docked';
+    statusDot.classList.add('ok');
+    setMouth('sleep');
+  }
+
+  function exitDockMode() {
+    if (!state.docked) return;
+    state.docked = false;
+    addVectorLog('Dock mode disabled');
+    showHello('Dock mode off', 1800);
+  }
+
+  function toggleDockMode() {
+    if (state.docked) exitDockMode();
+    else enterDockMode();
+  }
+
+  function startExploreMode(durationMs = 12000) {
+    state.exploring = true;
+    state.exploreUntil = performance.now() + durationMs;
+    state.docked = false;
+    addVectorLog(`Explore mode started for ${formatDuration(durationMs)}`);
+    showHello('Exploring around...', 2200);
+    state.widenUntil = performance.now() + 350;
+    setMouth('wide');
+  }
+
+  function stopExploreMode() {
+    if (!state.exploring) return;
+    state.exploring = false;
+    state.exploreUntil = 0;
+    addVectorLog('Explore mode ended');
+  }
+
+  function createFireworksLayer() {
+    let layer = document.getElementById('vectorFireworks');
+    if (!layer) {
+      layer = document.createElement('div');
+      layer.id = 'vectorFireworks';
+      layer.className = 'vector-fireworks';
+      document.body.appendChild(layer);
+    }
+    return layer;
+  }
+
+  function triggerFireworks() {
+    const layer = createFireworksLayer();
+    layer.innerHTML = '';
+    const colors = ['#6ee7ff', '#7cffb2', '#ffd36e', '#ff6b8a', '#ffffff'];
+
+    for (let i = 0; i < 18; i++) {
+      const spark = document.createElement('span');
+      spark.className = 'vector-fireworks__spark';
+      spark.style.left = `${20 + Math.random() * 60}%`;
+      spark.style.top = `${15 + Math.random() * 35}%`;
+      spark.style.setProperty('--dx', `${(Math.random() - 0.5) * 240}px`);
+      spark.style.setProperty('--dy', `${(Math.random() - 0.5) * 240 - 80}px`);
+      spark.style.background = colors[i % colors.length];
+      spark.style.boxShadow = `0 0 14px ${colors[i % colors.length]}`;
+      spark.style.animationDelay = `${Math.random() * 0.18}s`;
+      layer.appendChild(spark);
+    }
+
+    layer.classList.add('show');
+    addVectorLog('Fireworks launched');
+    showHello('Fireworks!', 1800);
+    setMouth('laugh');
+
+    setTimeout(() => {
+      layer.classList.remove('show');
+      layer.innerHTML = '';
+    }, 2600);
+  }
+
+  function triggerWheelstand() {
+    document.body.classList.add('wheelstand-mode');
+    addVectorLog('Wheelstand pose engaged');
+    showHello('Wheelstand!', 1600);
+    state.widenUntil = performance.now() + 650;
+    setMouth('wide');
+
+    setTimeout(() => {
+      document.body.classList.remove('wheelstand-mode');
+    }, 1800);
+  }
+
+  function cardLabel(card) {
+    return `${card.rank}${card.suit}`;
+  }
+
+  function cardValue(card) {
+    if (card.rank === 'A') return 11;
+    if (['K', 'Q', 'J'].includes(card.rank)) return 10;
+    return Number.parseInt(card.rank, 10);
+  }
+
+  function handValue(hand) {
+    let total = hand.reduce((sum, card) => sum + cardValue(card), 0);
+    let aces = hand.filter((card) => card.rank === 'A').length;
+    while (total > 21 && aces > 0) {
+      total -= 10;
+      aces -= 1;
+    }
+    return total;
+  }
+
+  function blackjackDeck() {
+    const suits = ['♠', '♥', '♦', '♣'];
+    const ranks = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
+    const deck = [];
+    for (const suit of suits) {
+      for (const rank of ranks) {
+        deck.push({ rank, suit });
+      }
+    }
+    for (let i = deck.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [deck[i], deck[j]] = [deck[j], deck[i]];
+    }
+    return deck;
+  }
+
+  function blackjackDraw(stateRef) {
+    if (!stateRef.deck.length) {
+      stateRef.deck = blackjackDeck();
+    }
+    return stateRef.deck.pop();
+  }
+
+  function renderBlackjack() {
+    if (!blackjackHands) return;
+    const playerValue = handValue(state.blackjack.player);
+    const dealerValue = state.blackjack.finished ? handValue(state.blackjack.dealer) : (state.blackjack.dealer.length ? cardValue(state.blackjack.dealer[0]) + ' + ?' : '0');
+    blackjackHands.innerHTML = `
+      <div class="vector-hand">
+        <span class="vector-hand__label">Player</span>
+        <span class="vector-hand__cards">${state.blackjack.player.map(cardLabel).join(' ') || '—'}</span>
+        <span class="vector-hand__value">${playerValue}</span>
+      </div>
+      <div class="vector-hand">
+        <span class="vector-hand__label">Dealer</span>
+        <span class="vector-hand__cards">${state.blackjack.dealer.map(cardLabel).join(' ') || '—'}</span>
+        <span class="vector-hand__value">${dealerValue}</span>
+      </div>
+    `;
+  }
+
+  function updateBlackjackStatus(message) {
+    if (blackjackStatus) blackjackStatus.textContent = message;
+    renderBlackjack();
+  }
+
+  function finishBlackjack(outcomeMessage) {
+    state.blackjack.finished = true;
+    state.blackjack.active = false;
+    updateBlackjackStatus(outcomeMessage);
+    addVectorLog(outcomeMessage);
+    showHello(outcomeMessage, 2600);
+    if (/win|blackjack/i.test(outcomeMessage)) {
+      setMouth('smile');
+    } else if (/lose|bust/i.test(outcomeMessage)) {
+      setMouth('sad');
+    } else {
+      setMouth('neutral');
+    }
+  }
+
+  function startBlackjackGame() {
+    state.blackjack = {
+      active: true,
+      player: [],
+      dealer: [],
+      finished: false,
+      deck: blackjackDeck()
+    };
+
+    state.blackjack.player.push(blackjackDraw(state.blackjack), blackjackDraw(state.blackjack));
+    state.blackjack.dealer.push(blackjackDraw(state.blackjack), blackjackDraw(state.blackjack));
+    addVectorLog('Blackjack hand dealt');
+
+    const playerValue = handValue(state.blackjack.player);
+    const dealerValue = handValue(state.blackjack.dealer);
+    renderBlackjack();
+
+    if (playerValue === 21) {
+      finishBlackjack('Blackjack! You hit 21.');
+      return;
+    }
+
+    if (dealerValue === 21) {
+      state.blackjack.finished = true;
+      state.blackjack.active = false;
+      updateBlackjackStatus('Dealer has blackjack');
+      addVectorLog('Dealer has blackjack');
+      showHello('Dealer blackjack', 2400);
+      setMouth('sad');
+      return;
+    }
+
+    updateBlackjackStatus(`Player ${playerValue} vs dealer up-card ${cardLabel(state.blackjack.dealer[0])}`);
+    showHello('Blackjack started', 2000);
+  }
+
+  function blackjackHitCard() {
+    if (!state.blackjack.active) return;
+    state.blackjack.player.push(blackjackDraw(state.blackjack));
+    const playerValue = handValue(state.blackjack.player);
+    addVectorLog(`Player drew ${cardLabel(state.blackjack.player[state.blackjack.player.length - 1])}`);
+    if (playerValue > 21) {
+      renderBlackjack();
+      finishBlackjack(`Bust at ${playerValue}. Dealer wins.`);
+      return;
+    }
+
+    updateBlackjackStatus(`Player at ${playerValue}`);
+  }
+
+  function blackjackStandHand() {
+    if (!state.blackjack.active) return;
+    while (handValue(state.blackjack.dealer) < 17) {
+      state.blackjack.dealer.push(blackjackDraw(state.blackjack));
+    }
+
+    const playerValue = handValue(state.blackjack.player);
+    const dealerValue = handValue(state.blackjack.dealer);
+    renderBlackjack();
+
+    if (dealerValue > 21) {
+      finishBlackjack(`Dealer busts at ${dealerValue}. You win.`);
+      return;
+    }
+
+    if (playerValue > dealerValue) {
+      finishBlackjack(`You win ${playerValue} to ${dealerValue}.`);
+    } else if (dealerValue > playerValue) {
+      finishBlackjack(`Dealer wins ${dealerValue} to ${playerValue}.`);
+    } else {
+      finishBlackjack(`Push at ${playerValue}.`);
+    }
+  }
+
+  function resetBlackjack() {
+    state.blackjack = {
+      active: false,
+      player: [],
+      dealer: [],
+      finished: false,
+      deck: blackjackDeck()
+    };
+    updateBlackjackStatus('No hand dealt yet');
+    addVectorLog('Blackjack reset');
+  }
+
+  function setCubeStatus(message, mode = 'idle') {
+    state.cubeMode = mode;
+    if (cubeStatus) cubeStatus.textContent = message;
+    addVectorLog(message);
+    showHello(message, 2200);
+  }
+
+  function cubeFindAction() {
+    setCubeStatus('Searching for the Light Cube', 'searching');
+    setMouth('smile');
+  }
+
+  function cubeChargeAction() {
+    setCubeStatus('Cube charging near the dock', 'charging');
+    enterDockMode();
+  }
+
+  function cubeInspectAction() {
+    setCubeStatus('Inspecting a custom object or face', 'inspect');
+    state.widenUntil = performance.now() + 400;
+    doBlink();
+  }
+
+  function cubeDanceAction() {
+    setCubeStatus('Cube dance mode active', 'dance');
+    triggerWheelstand();
+  }
+
+  function renderVectorSheet() {
+    if (vectorActions) {
+      vectorActions.innerHTML = VECTOR_QUICK_ACTIONS.map((action) => `
+        <button class="vector-action" type="button" data-vector-action="${action.id}">
+          <span class="vector-action__icon">${action.icon}</span>
+          <span class="vector-action__label">${action.label}</span>
+        </button>
+      `).join('');
+    }
+
+    if (vectorCategories) {
+      vectorCategories.innerHTML = VECTOR_SECTIONS.map((section) => `
+        <article class="vector-card">
+          <h3>${section.title}</h3>
+          <ul>
+            ${section.items.map((item) => `<li>${item}</li>`).join('')}
+          </ul>
+        </article>
+      `).join('');
+    }
+
+    updateTimerStatus();
+    renderBlackjack();
+    if (vectorLive && vectorLive.children.length === 0) {
+      addVectorLog('Vector command center ready');
+    }
+  }
+
+  function openVectorSheet() {
+    if (!vectorSheet) return;
+    vectorSheet.classList.add('open');
+    vectorSheet.setAttribute('aria-hidden', 'false');
+  }
+
+  function closeVectorSheet() {
+    if (!vectorSheet) return;
+    vectorSheet.classList.remove('open');
+    vectorSheet.setAttribute('aria-hidden', 'true');
+  }
+
+  function toggleVectorSheet() {
+    if (!vectorSheet) return;
+    if (vectorSheet.classList.contains('open')) closeVectorSheet();
+    else openVectorSheet();
+  }
+
+  function runVectorQuickAction(actionId) {
+    if (actionId === 'greet') {
+      showHello('Vector can greet, answer, and react to you.', 3200);
+      setMouth('smile');
+    } else if (actionId === 'time') {
+      showHello(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), 3000);
+    } else if (actionId === 'timer') {
+      startVectorTimer(getTimerDurationMs());
+    } else if (actionId === 'photo') {
+      captureVectorPhoto();
+    } else if (actionId === 'dock') {
+      toggleDockMode();
+    } else if (actionId === 'explore') {
+      startExploreMode();
+    } else if (actionId === 'blackjack') {
+      startBlackjackGame();
+    } else if (actionId === 'fireworks') {
+      triggerFireworks();
+    } else if (actionId === 'wheelstand') {
+      triggerWheelstand();
+    } else if (actionId === 'cube') {
+      cubeFindAction();
+    } else if (actionId === 'celebrate') {
+      triggerFireworks();
+    } else if (actionId === 'sleep') {
+      showHello('Sleep and pause behavior is part of Vector control.', 3000);
+      setMouth('sleep');
+    }
   }
 
   // --------------- Clock ---------------
@@ -149,6 +724,21 @@
   const MAX_OFFSET = 22; // % translation
 
   function updatePupils() {
+    if (state.docked) {
+      state.pupilTargetX = 0;
+      state.pupilTargetY = 0;
+    }
+
+    if (state.exploring) {
+      if (performance.now() > state.exploreUntil) {
+        stopExploreMode();
+      } else {
+        const t = performance.now() / 650;
+        state.pupilTargetX = Math.sin(t) * 0.9;
+        state.pupilTargetY = Math.cos(t * 0.8) * 0.55;
+      }
+    }
+
     // Lerp toward target
     state.pupilCurrX += (state.pupilTargetX - state.pupilCurrX) * LERP;
     state.pupilCurrY += (state.pupilTargetY - state.pupilCurrY) * LERP;
@@ -245,77 +835,77 @@
 
   // --------------- Emotion Detection ---------------
   function detectEmotion(lm) {
-    // Analyze facial landmarks to detect emotions
-    // Using mouth & eye positions relative to face
-    
-    const noseTip    = lm[1];
-    const leftEye    = lm[33];
-    const rightEye   = lm[263];
-    const mouth      = lm[61];  // mouth center
-    const mouthLeft  = lm[61];
+    const leftEye = lm[33];
+    const rightEye = lm[263];
+    const mouthLeft = lm[61];
     const mouthRight = lm[291];
-    const chin       = lm[152];
-    const jawLeft    = lm[205];
-    const jawRight   = lm[425];
-    
-    // Calculate distances
-    const eyeDistance = Math.hypot(leftEye.x - rightEye.x, leftEye.y - rightEye.y);
-    const mouthWidth = Math.hypot(mouthRight.x - mouthLeft.x, mouthRight.y - mouthLeft.y);
-    const mouthOpenness = Math.max(0, mouth.y - noseTip.y) * 100; // vertical mouth opening
-    const jawWidth = Math.hypot(jawRight.x - jawLeft.x, jawRight.y - jawLeft.y);
-    
-    // Eye squintness (if eyes are squinted/closed)
-    const leftEyeOpenness = Math.max(0, lm[159].y - lm[145].y); // upper-lower eyelid
-    const rightEyeOpenness = Math.max(0, lm[386].y - lm[374].y);
-    const eyeOpen = (leftEyeOpenness + rightEyeOpenness) / 2;
-    
-    // Eyebrow position (higher = surprised, lower = angry/sad)
-    const leftBrow = lm[21].y;   // left eyebrow
-    const rightBrow = lm[251].y; // right eyebrow
-    const browHeight = (leftBrow + rightBrow) / 2;
-    
-    // Mouth curvature detection
-    const mouthCornerLeft = lm[61];
-    const mouthCornerRight = lm[291];
-    const mouthTopCenter = lm[13];
-    const mouthBottomCenter = lm[14];
-    
-    let emotion = 'neutral';
-    
-    // Laugh detection: big mouth open + eye squint
-    if (mouthOpenness > 3 && mouthWidth > eyeDistance * 0.6 && eyeOpen < 5) {
-      emotion = 'laugh';
+    const mouthTop = lm[13];
+    const mouthBottom = lm[14];
+    const leftEyeTop = lm[159];
+    const leftEyeBottom = lm[145];
+    const rightEyeTop = lm[386];
+    const rightEyeBottom = lm[374];
+    const leftBrow = lm[21];
+    const rightBrow = lm[251];
+
+    const eyeDistance = Math.max(0.001, distance(leftEye, rightEye));
+    const mouthWidth = distance(mouthLeft, mouthRight);
+    const mouthOpen = distance(mouthTop, mouthBottom) / eyeDistance;
+    const eyeOpen = ((leftEyeTop.y - leftEyeBottom.y) + (rightEyeTop.y - rightEyeBottom.y)) / (2 * eyeDistance);
+    const browLift = (((leftEyeTop.y - leftBrow.y) + (rightEyeTop.y - rightBrow.y)) / 2) / eyeDistance;
+    const browSkew = Math.abs((leftEyeTop.y - leftBrow.y) - (rightEyeTop.y - rightBrow.y)) / eyeDistance;
+    const mouthCenterY = (mouthTop.y + mouthBottom.y) / 2;
+    const mouthCornerLift = (mouthCenterY - ((mouthLeft.y + mouthRight.y) / 2)) / eyeDistance;
+    const mouthSmileWidth = mouthWidth / eyeDistance;
+
+    if (eyeOpen < 0.08) {
+      return 'sleep';
     }
-    // Sad detection: mouth corners down, eyebrows down
-    else if (mouthBottomCenter.y > mouthTopCenter.y + 0.03 && browHeight > 0.3) {
-      emotion = 'sad';
+    if (mouthOpen > 0.34 && eyeOpen > 0.12 && browLift > 0.09) {
+      return 'wide';
     }
-    // Confused: eyebrows raised, mouth neutral/pursed
-    else if (browHeight < 0.25 && mouthOpenness < 1.5) {
-      emotion = 'confused';
+    if (mouthOpen > 0.30 && eyeOpen < 0.10) {
+      return 'laugh';
     }
-    // Angry: eyebrows down & together, mouth down
-    else if (browHeight > 0.32 && mouthBottomCenter.y > mouthTopCenter.y) {
-      emotion = 'angry';
+    if (mouthCornerLift > 0.03 && eyeOpen > 0.07 && browLift > 0.03) {
+      return 'love';
     }
-    // Surprised: eyes wide open, eyebrows up, mouth open
-    else if (eyeOpen > 8 && browHeight < 0.22 && mouthOpenness > 2) {
-      emotion = 'wide'; // existing surprise expression
+    if (mouthCornerLift < -0.02 && eyeOpen < 0.11 && browLift < 0.05) {
+      return 'sad';
     }
-    // Love: smiling with relaxed eyes
-    else if (mouthOpenness > 1.5 && mouthOpenness < 3.5 && eyeOpen > 6) {
-      emotion = 'love';
+    if (browSkew > 0.05 && mouthOpen < 0.18) {
+      return 'confused';
     }
-    // Smile: standard smile
-    else if (mouthOpenness > 1.5 && eyeOpen > 5) {
-      emotion = 'smile';
+    if (browLift < 0.02 && mouthCornerLift < -0.01 && mouthOpen < 0.18) {
+      return 'angry';
     }
-    
-    return emotion;
+    if (mouthCornerLift > 0.01 && mouthSmileWidth > 0.95) {
+      return 'smile';
+    }
+
+    return 'neutral';
   }
 
   // --------------- Voice Recognition ---------------
   let recognitionActive = false;
+  let voiceRecognition = null;
+  let voiceRestartTimer = null;
+
+  function startVoiceRecognition() {
+    if (!voiceRecognition || recognitionActive) return;
+    try {
+      voiceRecognition.start();
+    } catch {}
+  }
+
+  function scheduleVoiceRestart(delayMs = 1200) {
+    if (!voiceRecognition) return;
+    clearTimeout(voiceRestartTimer);
+    voiceRestartTimer = setTimeout(() => {
+      startVoiceRecognition();
+    }, delayMs);
+  }
+
   function initVoiceRecognition() {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
@@ -343,35 +933,158 @@
     
     recognition.onerror = () => {
       recognitionActive = false;
-      setTimeout(() => {
-        if (state.facePresent) recognition.start();
-      }, 1000);
+      scheduleVoiceRestart(1200);
     };
     
     recognition.onend = () => {
       recognitionActive = false;
-      if (state.facePresent) {
-        try { recognition.start(); } catch {}
-      }
+      scheduleVoiceRestart(400);
     };
     
     return recognition;
   }
   
-  let voiceRecognition = null;
-  
   function handleVoiceCommand(transcript) {
-    if (transcript.includes('time')) {
+    const normalized = transcript.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+
+    if (/(what can you do|show vector|vector functions|vector capabilities|open vector|help me vector)/.test(normalized)) {
+      openVectorSheet();
+      showHello('Showing Vector capabilities', 2200);
+      return;
+    }
+
+    if (/\b(blackjack|deal blackjack|play blackjack)\b/.test(normalized)) {
+      startBlackjackGame();
+      return;
+    }
+
+    if (/\b(fireworks|celebrate|celebration)\b/.test(normalized)) {
+      triggerFireworks();
+      return;
+    }
+
+    if (/\b(wheelstand|wheel stand)\b/.test(normalized)) {
+      triggerWheelstand();
+      return;
+    }
+
+    const timerMatch = normalized.match(/\b(?:set )?timer(?: for)? (\d+)(?:\s*(seconds?|minutes?))?/);
+    if (timerMatch) {
+      const timerValue = Number.parseInt(timerMatch[1], 10);
+      const timerUnit = timerMatch[2] && timerMatch[2].startsWith('sec') ? 'seconds' : 'minutes';
+      if (vectorTimerInput) vectorTimerInput.value = String(timerValue);
+      if (vectorTimerUnit) vectorTimerUnit.value = timerUnit;
+      startVectorTimer(timerUnit === 'seconds' ? timerValue * 1000 : timerValue * 60 * 1000);
+      return;
+    }
+
+    if (/\b(cancel timer|stop timer)\b/.test(normalized)) {
+      clearVectorTimer();
+      addVectorLog('Timer canceled');
+      showHello('Timer canceled', 2000);
+      return;
+    }
+
+    if (/\b(take photo|capture photo|snap photo)\b/.test(normalized)) {
+      captureVectorPhoto();
+      return;
+    }
+
+    if (/\b(dock|undock)\b/.test(normalized)) {
+      toggleDockMode();
+      return;
+    }
+
+    if (/\b(explore|wander|look around)\b/.test(normalized)) {
+      startExploreMode();
+      return;
+    }
+
+    if (/\b(cube|light cube|charger|custom object|object)\b/.test(normalized)) {
+      cubeFindAction();
+      return;
+    }
+
+    if (/\btime\b/.test(normalized)) {
       showHello(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), 5000);
     }
-    else if (transcript.includes('weather')) {
+    else if (/\b(weather|forecast|temperature|rain|sunny|cloudy)\b/.test(normalized)) {
       showHello('Fetching weather...', 2000);
       fetchWeather();
     }
-    else if (transcript.includes('hello') || transcript.includes('hi')) {
+    else if (/\b(hello|hi|hey)\b/.test(normalized)) {
       showHello('Hey there! 👋', 2000);
     }
   }
+
+  if (vectorBtn) {
+    vectorBtn.addEventListener('click', toggleVectorSheet);
+  }
+
+  if (vectorTimerStart) {
+    vectorTimerStart.addEventListener('click', () => startVectorTimer(getTimerDurationMs()));
+  }
+
+  if (vectorTimerCancel) {
+    vectorTimerCancel.addEventListener('click', () => {
+      clearVectorTimer();
+      addVectorLog('Timer canceled');
+      showHello('Timer canceled', 1800);
+    });
+  }
+
+  if (blackjackDeal) {
+    blackjackDeal.addEventListener('click', startBlackjackGame);
+  }
+
+  if (blackjackHit) {
+    blackjackHit.addEventListener('click', blackjackHitCard);
+  }
+
+  if (blackjackStand) {
+    blackjackStand.addEventListener('click', blackjackStandHand);
+  }
+
+  if (blackjackReset) {
+    blackjackReset.addEventListener('click', resetBlackjack);
+  }
+
+  if (cubeFind) {
+    cubeFind.addEventListener('click', cubeFindAction);
+  }
+
+  if (cubeCharge) {
+    cubeCharge.addEventListener('click', cubeChargeAction);
+  }
+
+  if (cubeInspect) {
+    cubeInspect.addEventListener('click', cubeInspectAction);
+  }
+
+  if (cubeDance) {
+    cubeDance.addEventListener('click', cubeDanceAction);
+  }
+
+  if (vectorSheet) {
+    vectorSheet.addEventListener('click', (event) => {
+      const target = event.target;
+      if (target && target.matches('[data-vector-close]')) {
+        closeVectorSheet();
+        return;
+      }
+
+      const actionButton = target && target.closest ? target.closest('[data-vector-action]') : null;
+      if (actionButton) {
+        runVectorQuickAction(actionButton.getAttribute('data-vector-action'));
+      }
+    });
+  }
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+      closeVectorSheet();
+    }
+  });
   
   function fetchWeather() {
     if (!navigator.geolocation) {
@@ -475,6 +1188,12 @@
       state.pupilTargetX = 0;
       state.pupilTargetY = 0;
 
+      if (state.docked) {
+        faceStatus.textContent = 'Docked';
+        statusDot.classList.add('ok');
+        return;
+      }
+
       // Enter sleep after 15s without face
       if (now - state.lastFaceSeenAt > 15000) {
         enterSleep();
@@ -520,8 +1239,15 @@
     state.facePresent = true;
     state.lastFaceSeenAt = now;
     state.faceScale = faceScale;
-    faceStatus.textContent = 'With you';
+    faceStatus.textContent = state.docked ? 'Docked' : 'With you';
     statusDot.classList.add('ok');
+
+    if (state.docked) {
+      state.pupilTargetX = 0;
+      state.pupilTargetY = 0;
+      setMouth('sleep');
+      return;
+    }
 
     // Map face position to pupil target
     // Camera is mirrored → invert X so eyes look "at" the user naturally
@@ -597,17 +1323,14 @@
 
   // --------------- Boot ---------------
   async function boot() {
+    document.body.classList.add('matrix-mode');
     initQuote();
+    renderVectorSheet();
+    resetBlackjack();
     updateClock();
     setInterval(updateClock, 1000);
     setMouth('neutral');
     requestAnimationFrame(loop);
-    
-    // Initialize voice recognition
-    voiceRecognition = initVoiceRecognition();
-    if (voiceRecognition) {
-      try { voiceRecognition.start(); } catch {}
-    }
 
     // Wait briefly for MediaPipe scripts to load
     let tries = 0;
@@ -624,6 +1347,12 @@
     startOverlay.classList.add('hidden');
     app.classList.add('active');
     app.setAttribute('aria-hidden', 'false');
+
+    voiceRecognition = initVoiceRecognition();
+    if (voiceRecognition) {
+      startVoiceRecognition();
+    }
+
     await boot();
   });
 
