@@ -27,6 +27,13 @@
   const vectorBtn    = $('vectorBtn');
   const vectorSheet  = $('vectorSheet');
   const vectorActions = $('vectorActions');
+  const vectorTimerInput = $('vectorTimerInput');
+  const vectorTimerUnit = $('vectorTimerUnit');
+  const vectorTimerStart = $('vectorTimerStart');
+  const vectorTimerCancel = $('vectorTimerCancel');
+  const vectorTimerStatus = $('vectorTimerStatus');
+  const vectorLive = $('vectorLive');
+  const vectorPhotoPreview = $('vectorPhotoPreview');
   const vectorCategories = $('vectorCategories');
   const camToggle    = $('camToggle');
   const video        = $('cam');
@@ -54,6 +61,8 @@
     // Modes
     mood: 'night',
     sleeping: false,
+    docked: false,
+    exploring: false,
     cameraOn: true,
     greetingShown: false,
 
@@ -63,7 +72,11 @@
     lastQuoteChange: Date.now(),
     currentQuoteIndex: 0,
     helloUntil: 0,
-    widenUntil: 0
+    widenUntil: 0,
+    timerEndsAt: 0,
+    timerTimeoutId: null,
+    timerTickId: null,
+    exploreUntil: 0
   };
 
   // --------------- Settings (localStorage) ---------------
@@ -104,7 +117,7 @@
   const VECTOR_QUICK_ACTIONS = [
     { id: 'greet', label: 'Greet', icon: '👋' },
     { id: 'time', label: 'Time', icon: '🕒' },
-    { id: 'weather', label: 'Weather', icon: '🌦' },
+    { id: 'timer', label: 'Timer', icon: '⏱️' },
     { id: 'photo', label: 'Photo', icon: '📸' },
     { id: 'dock', label: 'Dock', icon: '🧲' },
     { id: 'explore', label: 'Explore', icon: '🗺️' },
@@ -187,6 +200,147 @@
     state.lastQuoteChange = Date.now();
   }
 
+  function addVectorLog(message) {
+    if (!vectorLive) return;
+    const entry = document.createElement('div');
+    entry.className = 'vector-log__entry';
+    entry.textContent = message;
+    vectorLive.prepend(entry);
+
+    while (vectorLive.children.length > 5) {
+      vectorLive.removeChild(vectorLive.lastElementChild);
+    }
+  }
+
+  function formatDuration(ms) {
+    const totalSeconds = Math.ceil(Math.max(0, ms) / 1000);
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    if (minutes > 0) {
+      return `${minutes}m ${String(seconds).padStart(2, '0')}s`;
+    }
+    return `${seconds}s`;
+  }
+
+  function updateTimerStatus() {
+    if (!vectorTimerStatus) return;
+    if (!state.timerEndsAt) {
+      vectorTimerStatus.textContent = 'No timer set';
+      return;
+    }
+
+    const remaining = state.timerEndsAt - Date.now();
+    vectorTimerStatus.textContent = remaining > 0 ? `Time left: ${formatDuration(remaining)}` : 'Timer complete';
+  }
+
+  function clearVectorTimer() {
+    if (state.timerTimeoutId) {
+      clearTimeout(state.timerTimeoutId);
+      state.timerTimeoutId = null;
+    }
+    if (state.timerTickId) {
+      clearInterval(state.timerTickId);
+      state.timerTickId = null;
+    }
+    state.timerEndsAt = 0;
+    updateTimerStatus();
+  }
+
+  function startVectorTimer(durationMs) {
+    clearVectorTimer();
+    state.timerEndsAt = Date.now() + durationMs;
+    updateTimerStatus();
+    addVectorLog(`Timer started for ${formatDuration(durationMs)}`);
+    showHello(`Timer set for ${formatDuration(durationMs)}`, 2400);
+
+    state.timerTickId = setInterval(updateTimerStatus, 1000);
+    state.timerTimeoutId = setTimeout(() => {
+      clearVectorTimer();
+      addVectorLog('Timer finished');
+      showHello('Timer complete', 3200);
+      setMouth('laugh');
+      state.widenUntil = performance.now() + 450;
+      doBlink();
+    }, durationMs);
+  }
+
+  function getTimerDurationMs() {
+    const rawValue = Number.parseInt(vectorTimerInput ? vectorTimerInput.value : '5', 10);
+    const safeValue = Number.isFinite(rawValue) && rawValue > 0 ? rawValue : 5;
+    const unit = vectorTimerUnit ? vectorTimerUnit.value : 'minutes';
+    return unit === 'seconds' ? safeValue * 1000 : safeValue * 60 * 1000;
+  }
+
+  function captureVectorPhoto() {
+    if (!video || video.videoWidth === 0 || video.videoHeight === 0) {
+      showHello('Camera is still warming up', 2400);
+      addVectorLog('Photo capture skipped: camera not ready');
+      return;
+    }
+
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+
+    const context = canvas.getContext('2d');
+    if (!context) {
+      showHello('Photo capture unavailable', 2400);
+      return;
+    }
+
+    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const photoUrl = canvas.toDataURL('image/png');
+    if (vectorPhotoPreview) {
+      vectorPhotoPreview.hidden = false;
+      vectorPhotoPreview.src = photoUrl;
+    }
+
+    addVectorLog('Captured a photo from the live camera feed');
+    showHello('Photo captured', 2200);
+    setMouth('smile');
+  }
+
+  function enterDockMode() {
+    state.docked = true;
+    state.exploring = false;
+    state.exploreUntil = 0;
+    clearVectorTimer();
+    addVectorLog('Dock mode enabled');
+    showHello('Dock mode on', 2200);
+    faceStatus.textContent = 'Docked';
+    statusDot.classList.add('ok');
+    setMouth('sleep');
+  }
+
+  function exitDockMode() {
+    if (!state.docked) return;
+    state.docked = false;
+    addVectorLog('Dock mode disabled');
+    showHello('Dock mode off', 1800);
+  }
+
+  function toggleDockMode() {
+    if (state.docked) exitDockMode();
+    else enterDockMode();
+  }
+
+  function startExploreMode(durationMs = 12000) {
+    state.exploring = true;
+    state.exploreUntil = performance.now() + durationMs;
+    state.docked = false;
+    addVectorLog(`Explore mode started for ${formatDuration(durationMs)}`);
+    showHello('Exploring around...', 2200);
+    state.widenUntil = performance.now() + 350;
+    setMouth('wide');
+  }
+
+  function stopExploreMode() {
+    if (!state.exploring) return;
+    state.exploring = false;
+    state.exploreUntil = 0;
+    addVectorLog('Explore mode ended');
+  }
+
   function renderVectorSheet() {
     if (vectorActions) {
       vectorActions.innerHTML = VECTOR_QUICK_ACTIONS.map((action) => `
@@ -206,6 +360,11 @@
           </ul>
         </article>
       `).join('');
+    }
+
+    updateTimerStatus();
+    if (vectorLive && vectorLive.children.length === 0) {
+      addVectorLog('Vector command center ready');
     }
   }
 
@@ -233,18 +392,14 @@
       setMouth('smile');
     } else if (actionId === 'time') {
       showHello(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), 3000);
-    } else if (actionId === 'weather') {
-      showHello('Weather support includes time and forecast-style prompts.', 3000);
-      fetchWeather();
+    } else if (actionId === 'timer') {
+      startVectorTimer(getTimerDurationMs());
     } else if (actionId === 'photo') {
-      showHello('Photo capture is part of Vector-style behavior.', 3000);
-      setMouth('smile');
+      captureVectorPhoto();
     } else if (actionId === 'dock') {
-      showHello('Docking and charging are core Vector actions.', 3000);
-      setMouth('neutral');
+      toggleDockMode();
     } else if (actionId === 'explore') {
-      showHello('Vector can explore and map its environment.', 3000);
-      setMouth('wide');
+      startExploreMode();
     } else if (actionId === 'celebrate') {
       showHello('Fireworks, blackjack, and wheelstand belong in the fun set.', 3500);
       state.widenUntil = performance.now() + 700;
@@ -294,6 +449,21 @@
   const MAX_OFFSET = 22; // % translation
 
   function updatePupils() {
+    if (state.docked) {
+      state.pupilTargetX = 0;
+      state.pupilTargetY = 0;
+    }
+
+    if (state.exploring) {
+      if (performance.now() > state.exploreUntil) {
+        stopExploreMode();
+      } else {
+        const t = performance.now() / 650;
+        state.pupilTargetX = Math.sin(t) * 0.9;
+        state.pupilTargetY = Math.cos(t * 0.8) * 0.55;
+      }
+    }
+
     // Lerp toward target
     state.pupilCurrX += (state.pupilTargetX - state.pupilCurrX) * LERP;
     state.pupilCurrY += (state.pupilTargetY - state.pupilCurrY) * LERP;
@@ -508,6 +678,38 @@
       return;
     }
 
+    const timerMatch = normalized.match(/\b(?:set )?timer(?: for)? (\d+)(?:\s*(seconds?|minutes?))?/);
+    if (timerMatch) {
+      const timerValue = Number.parseInt(timerMatch[1], 10);
+      const timerUnit = timerMatch[2] && timerMatch[2].startsWith('sec') ? 'seconds' : 'minutes';
+      if (vectorTimerInput) vectorTimerInput.value = String(timerValue);
+      if (vectorTimerUnit) vectorTimerUnit.value = timerUnit;
+      startVectorTimer(timerUnit === 'seconds' ? timerValue * 1000 : timerValue * 60 * 1000);
+      return;
+    }
+
+    if (/\b(cancel timer|stop timer)\b/.test(normalized)) {
+      clearVectorTimer();
+      addVectorLog('Timer canceled');
+      showHello('Timer canceled', 2000);
+      return;
+    }
+
+    if (/\b(take photo|capture photo|snap photo)\b/.test(normalized)) {
+      captureVectorPhoto();
+      return;
+    }
+
+    if (/\b(dock|undock)\b/.test(normalized)) {
+      toggleDockMode();
+      return;
+    }
+
+    if (/\b(explore|wander|look around)\b/.test(normalized)) {
+      startExploreMode();
+      return;
+    }
+
     if (/\btime\b/.test(normalized)) {
       showHello(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), 5000);
     }
@@ -522,6 +724,18 @@
 
   if (vectorBtn) {
     vectorBtn.addEventListener('click', toggleVectorSheet);
+  }
+
+  if (vectorTimerStart) {
+    vectorTimerStart.addEventListener('click', () => startVectorTimer(getTimerDurationMs()));
+  }
+
+  if (vectorTimerCancel) {
+    vectorTimerCancel.addEventListener('click', () => {
+      clearVectorTimer();
+      addVectorLog('Timer canceled');
+      showHello('Timer canceled', 1800);
+    });
   }
 
   if (vectorSheet) {
@@ -647,6 +861,12 @@
       state.pupilTargetX = 0;
       state.pupilTargetY = 0;
 
+      if (state.docked) {
+        faceStatus.textContent = 'Docked';
+        statusDot.classList.add('ok');
+        return;
+      }
+
       // Enter sleep after 15s without face
       if (now - state.lastFaceSeenAt > 15000) {
         enterSleep();
@@ -692,8 +912,15 @@
     state.facePresent = true;
     state.lastFaceSeenAt = now;
     state.faceScale = faceScale;
-    faceStatus.textContent = 'With you';
+    faceStatus.textContent = state.docked ? 'Docked' : 'With you';
     statusDot.classList.add('ok');
+
+    if (state.docked) {
+      state.pupilTargetX = 0;
+      state.pupilTargetY = 0;
+      setMouth('sleep');
+      return;
+    }
 
     // Map face position to pupil target
     // Camera is mirrored → invert X so eyes look "at" the user naturally

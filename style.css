@@ -293,14 +293,139 @@ body.matrix-mode {
 .vector-card li + li {
   margin-top: 6px;
 }
+
+.vector-dashboard {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.vector-module {
+  padding: 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(110, 231, 255, 0.12);
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.vector-module--wide {
+  grid-column: 1 / -1;
+}
+
+.vector-module__head h3 {
+  margin: 0 0 4px;
+  font-size: 16px;
+  color: var(--text);
+}
+
+.vector-module__head p {
+  margin: 0 0 14px;
+  color: var(--text-dim);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.vector-action--solid {
+  background: linear-gradient(135deg, rgba(110, 231, 255, 0.22), rgba(58, 184, 255, 0.4));
+  border-color: rgba(110, 231, 255, 0.24);
+}
+
+.vector-timer {
+  display: grid;
+  gap: 10px;
+}
+
+.vector-timer__row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.vector-input {
+  flex: 1;
+  min-width: 0;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text);
+  font: inherit;
+}
+
+.vector-input:focus {
+  outline: 1px solid rgba(110, 231, 255, 0.5);
+  border-color: rgba(110, 231, 255, 0.4);
+}
+
+.vector-timer__status {
+  color: var(--text-dim);
+  font-size: 13px;
+}
+
+.vector-log {
+  display: grid;
+  gap: 8px;
+  min-height: 120px;
+  margin-bottom: 12px;
+}
+
+.vector-log__entry {
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--text-dim);
+  font-size: 13px;
+}
+
+.vector-photo-preview {
+  display: block;
+  width: 100%;
+  max-height: 220px;
+  object-fit: cover;
+  border-radius: 16px;
+  border: 1px solid rgba(110, 231, 255, 0.18);
+}
+
+@media (max-width: 720px) {
+  .vector-sheet__panel {
+    inset: 10px;
+    padding: 18px;
+  }
+
+  .vector-dashboard,
+  .vector-actions,
+  .vector-categories {
+    grid-template-columns: 1fr;
+  }
+
+  .vector-timer__row {
+    flex-direction: column;
+  }
+
+  .vector-btn,
+  .cam-btn {
+    padding-inline: 12px;
+  }
+
+  .topbar {
+    padding-inline: 12px;
+  }
+}
+
+.clock {
+  font-size: clamp(48px, 14vw, 84px);
+  font-weight: 200;
   letter-spacing: 2px;
   color: var(--text);
   text-shadow: 0 0 14px var(--mood-glow), 0 0 40px rgba(58, 184, 255, 0.2);
   font-variant-numeric: tabular-nums;
 }
+
 .date {
-  font-size: 13px; color: var(--text-dim);
-  letter-spacing: 1px; text-transform: uppercase;
+  font-size: 13px;
+  color: var(--text-dim);
+  letter-spacing: 1px;
+  text-transform: uppercase;
   margin-top: 2px;
 }
 
