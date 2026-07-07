@@ -143,6 +143,41 @@
           <img id="vectorPhotoPreview" class="vector-photo-preview" alt="Captured Vector-style photo preview" hidden />
         </section>
 
+        <section class="vector-module">
+          <div class="vector-module__head">
+            <h3>Blackjack</h3>
+            <p>Deal a hand, draw cards, and let Vector announce the result.</p>
+          </div>
+          <div class="vector-blackjack">
+            <div id="blackjackStatus" class="vector-timer__status">No hand dealt yet</div>
+            <div id="blackjackHands" class="vector-blackjack__hands"></div>
+            <div class="vector-timer__row">
+              <button id="blackjackDeal" class="vector-action vector-action--solid" type="button">Deal</button>
+              <button id="blackjackHit" class="vector-action" type="button">Hit</button>
+              <button id="blackjackStand" class="vector-action" type="button">Stand</button>
+              <button id="blackjackReset" class="vector-action" type="button">Reset</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="vector-module">
+          <div class="vector-module__head">
+            <h3>Cube actions</h3>
+            <p>Simulated Light Cube and object-focused actions for the next batch.</p>
+          </div>
+          <div class="vector-timer">
+            <div class="vector-timer__row">
+              <button id="cubeFind" class="vector-action vector-action--solid" type="button">Find cube</button>
+              <button id="cubeCharge" class="vector-action" type="button">Charge cube</button>
+            </div>
+            <div class="vector-timer__row">
+              <button id="cubeInspect" class="vector-action" type="button">Inspect object</button>
+              <button id="cubeDance" class="vector-action" type="button">Cube dance</button>
+            </div>
+            <div id="cubeStatus" class="vector-timer__status">Cube idle</div>
+          </div>
+        </section>
+
         <section class="vector-module vector-module--wide">
           <div class="vector-module__head">
             <h3>Reference</h3>

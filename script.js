@@ -34,6 +34,17 @@
   const vectorTimerStatus = $('vectorTimerStatus');
   const vectorLive = $('vectorLive');
   const vectorPhotoPreview = $('vectorPhotoPreview');
+  const blackjackStatus = $('blackjackStatus');
+  const blackjackHands = $('blackjackHands');
+  const blackjackDeal = $('blackjackDeal');
+  const blackjackHit = $('blackjackHit');
+  const blackjackStand = $('blackjackStand');
+  const blackjackReset = $('blackjackReset');
+  const cubeFind = $('cubeFind');
+  const cubeCharge = $('cubeCharge');
+  const cubeInspect = $('cubeInspect');
+  const cubeDance = $('cubeDance');
+  const cubeStatus = $('cubeStatus');
   const vectorCategories = $('vectorCategories');
   const camToggle    = $('camToggle');
   const video        = $('cam');
@@ -76,7 +87,14 @@
     timerEndsAt: 0,
     timerTimeoutId: null,
     timerTickId: null,
-    exploreUntil: 0
+    exploreUntil: 0,
+    blackjack: {
+      active: false,
+      player: [],
+      dealer: [],
+      finished: false
+    },
+    cubeMode: 'idle'
   };
 
   // --------------- Settings (localStorage) ---------------
@@ -121,6 +139,10 @@
     { id: 'photo', label: 'Photo', icon: '📸' },
     { id: 'dock', label: 'Dock', icon: '🧲' },
     { id: 'explore', label: 'Explore', icon: '🗺️' },
+    { id: 'blackjack', label: 'Blackjack', icon: '🂡' },
+    { id: 'fireworks', label: 'Fireworks', icon: '🎇' },
+    { id: 'wheelstand', label: 'Wheelstand', icon: '🤸' },
+    { id: 'cube', label: 'Cube', icon: '🟦' },
     { id: 'celebrate', label: 'Celebrate', icon: '🎆' },
     { id: 'sleep', label: 'Sleep', icon: '💤' }
   ];
@@ -341,6 +363,253 @@
     addVectorLog('Explore mode ended');
   }
 
+  function createFireworksLayer() {
+    let layer = document.getElementById('vectorFireworks');
+    if (!layer) {
+      layer = document.createElement('div');
+      layer.id = 'vectorFireworks';
+      layer.className = 'vector-fireworks';
+      document.body.appendChild(layer);
+    }
+    return layer;
+  }
+
+  function triggerFireworks() {
+    const layer = createFireworksLayer();
+    layer.innerHTML = '';
+    const colors = ['#6ee7ff', '#7cffb2', '#ffd36e', '#ff6b8a', '#ffffff'];
+
+    for (let i = 0; i < 18; i++) {
+      const spark = document.createElement('span');
+      spark.className = 'vector-fireworks__spark';
+      spark.style.left = `${20 + Math.random() * 60}%`;
+      spark.style.top = `${15 + Math.random() * 35}%`;
+      spark.style.setProperty('--dx', `${(Math.random() - 0.5) * 240}px`);
+      spark.style.setProperty('--dy', `${(Math.random() - 0.5) * 240 - 80}px`);
+      spark.style.background = colors[i % colors.length];
+      spark.style.boxShadow = `0 0 14px ${colors[i % colors.length]}`;
+      spark.style.animationDelay = `${Math.random() * 0.18}s`;
+      layer.appendChild(spark);
+    }
+
+    layer.classList.add('show');
+    addVectorLog('Fireworks launched');
+    showHello('Fireworks!', 1800);
+    setMouth('laugh');
+
+    setTimeout(() => {
+      layer.classList.remove('show');
+      layer.innerHTML = '';
+    }, 2600);
+  }
+
+  function triggerWheelstand() {
+    document.body.classList.add('wheelstand-mode');
+    addVectorLog('Wheelstand pose engaged');
+    showHello('Wheelstand!', 1600);
+    state.widenUntil = performance.now() + 650;
+    setMouth('wide');
+
+    setTimeout(() => {
+      document.body.classList.remove('wheelstand-mode');
+    }, 1800);
+  }
+
+  function cardLabel(card) {
+    return `${card.rank}${card.suit}`;
+  }
+
+  function cardValue(card) {
+    if (card.rank === 'A') return 11;
+    if (['K', 'Q', 'J'].includes(card.rank)) return 10;
+    return Number.parseInt(card.rank, 10);
+  }
+
+  function handValue(hand) {
+    let total = hand.reduce((sum, card) => sum + cardValue(card), 0);
+    let aces = hand.filter((card) => card.rank === 'A').length;
+    while (total > 21 && aces > 0) {
+      total -= 10;
+      aces -= 1;
+    }
+    return total;
+  }
+
+  function blackjackDeck() {
+    const suits = ['♠', '♥', '♦', '♣'];
+    const ranks = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
+    const deck = [];
+    for (const suit of suits) {
+      for (const rank of ranks) {
+        deck.push({ rank, suit });
+      }
+    }
+    for (let i = deck.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [deck[i], deck[j]] = [deck[j], deck[i]];
+    }
+    return deck;
+  }
+
+  function blackjackDraw(stateRef) {
+    if (!stateRef.deck.length) {
+      stateRef.deck = blackjackDeck();
+    }
+    return stateRef.deck.pop();
+  }
+
+  function renderBlackjack() {
+    if (!blackjackHands) return;
+    const playerValue = handValue(state.blackjack.player);
+    const dealerValue = state.blackjack.finished ? handValue(state.blackjack.dealer) : (state.blackjack.dealer.length ? cardValue(state.blackjack.dealer[0]) + ' + ?' : '0');
+    blackjackHands.innerHTML = `
+      <div class="vector-hand">
+        <span class="vector-hand__label">Player</span>
+        <span class="vector-hand__cards">${state.blackjack.player.map(cardLabel).join(' ') || '—'}</span>
+        <span class="vector-hand__value">${playerValue}</span>
+      </div>
+      <div class="vector-hand">
+        <span class="vector-hand__label">Dealer</span>
+        <span class="vector-hand__cards">${state.blackjack.dealer.map(cardLabel).join(' ') || '—'}</span>
+        <span class="vector-hand__value">${dealerValue}</span>
+      </div>
+    `;
+  }
+
+  function updateBlackjackStatus(message) {
+    if (blackjackStatus) blackjackStatus.textContent = message;
+    renderBlackjack();
+  }
+
+  function finishBlackjack(outcomeMessage) {
+    state.blackjack.finished = true;
+    state.blackjack.active = false;
+    updateBlackjackStatus(outcomeMessage);
+    addVectorLog(outcomeMessage);
+    showHello(outcomeMessage, 2600);
+    if (/win|blackjack/i.test(outcomeMessage)) {
+      setMouth('smile');
+    } else if (/lose|bust/i.test(outcomeMessage)) {
+      setMouth('sad');
+    } else {
+      setMouth('neutral');
+    }
+  }
+
+  function startBlackjackGame() {
+    state.blackjack = {
+      active: true,
+      player: [],
+      dealer: [],
+      finished: false,
+      deck: blackjackDeck()
+    };
+
+    state.blackjack.player.push(blackjackDraw(state.blackjack), blackjackDraw(state.blackjack));
+    state.blackjack.dealer.push(blackjackDraw(state.blackjack), blackjackDraw(state.blackjack));
+    addVectorLog('Blackjack hand dealt');
+
+    const playerValue = handValue(state.blackjack.player);
+    const dealerValue = handValue(state.blackjack.dealer);
+    renderBlackjack();
+
+    if (playerValue === 21) {
+      finishBlackjack('Blackjack! You hit 21.');
+      return;
+    }
+
+    if (dealerValue === 21) {
+      state.blackjack.finished = true;
+      state.blackjack.active = false;
+      updateBlackjackStatus('Dealer has blackjack');
+      addVectorLog('Dealer has blackjack');
+      showHello('Dealer blackjack', 2400);
+      setMouth('sad');
+      return;
+    }
+
+    updateBlackjackStatus(`Player ${playerValue} vs dealer up-card ${cardLabel(state.blackjack.dealer[0])}`);
+    showHello('Blackjack started', 2000);
+  }
+
+  function blackjackHitCard() {
+    if (!state.blackjack.active) return;
+    state.blackjack.player.push(blackjackDraw(state.blackjack));
+    const playerValue = handValue(state.blackjack.player);
+    addVectorLog(`Player drew ${cardLabel(state.blackjack.player[state.blackjack.player.length - 1])}`);
+    if (playerValue > 21) {
+      renderBlackjack();
+      finishBlackjack(`Bust at ${playerValue}. Dealer wins.`);
+      return;
+    }
+
+    updateBlackjackStatus(`Player at ${playerValue}`);
+  }
+
+  function blackjackStandHand() {
+    if (!state.blackjack.active) return;
+    while (handValue(state.blackjack.dealer) < 17) {
+      state.blackjack.dealer.push(blackjackDraw(state.blackjack));
+    }
+
+    const playerValue = handValue(state.blackjack.player);
+    const dealerValue = handValue(state.blackjack.dealer);
+    renderBlackjack();
+
+    if (dealerValue > 21) {
+      finishBlackjack(`Dealer busts at ${dealerValue}. You win.`);
+      return;
+    }
+
+    if (playerValue > dealerValue) {
+      finishBlackjack(`You win ${playerValue} to ${dealerValue}.`);
+    } else if (dealerValue > playerValue) {
+      finishBlackjack(`Dealer wins ${dealerValue} to ${playerValue}.`);
+    } else {
+      finishBlackjack(`Push at ${playerValue}.`);
+    }
+  }
+
+  function resetBlackjack() {
+    state.blackjack = {
+      active: false,
+      player: [],
+      dealer: [],
+      finished: false,
+      deck: blackjackDeck()
+    };
+    updateBlackjackStatus('No hand dealt yet');
+    addVectorLog('Blackjack reset');
+  }
+
+  function setCubeStatus(message, mode = 'idle') {
+    state.cubeMode = mode;
+    if (cubeStatus) cubeStatus.textContent = message;
+    addVectorLog(message);
+    showHello(message, 2200);
+  }
+
+  function cubeFindAction() {
+    setCubeStatus('Searching for the Light Cube', 'searching');
+    setMouth('smile');
+  }
+
+  function cubeChargeAction() {
+    setCubeStatus('Cube charging near the dock', 'charging');
+    enterDockMode();
+  }
+
+  function cubeInspectAction() {
+    setCubeStatus('Inspecting a custom object or face', 'inspect');
+    state.widenUntil = performance.now() + 400;
+    doBlink();
+  }
+
+  function cubeDanceAction() {
+    setCubeStatus('Cube dance mode active', 'dance');
+    triggerWheelstand();
+  }
+
   function renderVectorSheet() {
     if (vectorActions) {
       vectorActions.innerHTML = VECTOR_QUICK_ACTIONS.map((action) => `
@@ -363,6 +632,7 @@
     }
 
     updateTimerStatus();
+    renderBlackjack();
     if (vectorLive && vectorLive.children.length === 0) {
       addVectorLog('Vector command center ready');
     }
@@ -400,11 +670,16 @@
       toggleDockMode();
     } else if (actionId === 'explore') {
       startExploreMode();
+    } else if (actionId === 'blackjack') {
+      startBlackjackGame();
+    } else if (actionId === 'fireworks') {
+      triggerFireworks();
+    } else if (actionId === 'wheelstand') {
+      triggerWheelstand();
+    } else if (actionId === 'cube') {
+      cubeFindAction();
     } else if (actionId === 'celebrate') {
-      showHello('Fireworks, blackjack, and wheelstand belong in the fun set.', 3500);
-      state.widenUntil = performance.now() + 700;
-      doBlink();
-      setMouth('laugh');
+      triggerFireworks();
     } else if (actionId === 'sleep') {
       showHello('Sleep and pause behavior is part of Vector control.', 3000);
       setMouth('sleep');
@@ -678,6 +953,21 @@
       return;
     }
 
+    if (/\b(blackjack|deal blackjack|play blackjack)\b/.test(normalized)) {
+      startBlackjackGame();
+      return;
+    }
+
+    if (/\b(fireworks|celebrate|celebration)\b/.test(normalized)) {
+      triggerFireworks();
+      return;
+    }
+
+    if (/\b(wheelstand|wheel stand)\b/.test(normalized)) {
+      triggerWheelstand();
+      return;
+    }
+
     const timerMatch = normalized.match(/\b(?:set )?timer(?: for)? (\d+)(?:\s*(seconds?|minutes?))?/);
     if (timerMatch) {
       const timerValue = Number.parseInt(timerMatch[1], 10);
@@ -710,6 +1000,11 @@
       return;
     }
 
+    if (/\b(cube|light cube|charger|custom object|object)\b/.test(normalized)) {
+      cubeFindAction();
+      return;
+    }
+
     if (/\btime\b/.test(normalized)) {
       showHello(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), 5000);
     }
@@ -736,6 +1031,38 @@
       addVectorLog('Timer canceled');
       showHello('Timer canceled', 1800);
     });
+  }
+
+  if (blackjackDeal) {
+    blackjackDeal.addEventListener('click', startBlackjackGame);
+  }
+
+  if (blackjackHit) {
+    blackjackHit.addEventListener('click', blackjackHitCard);
+  }
+
+  if (blackjackStand) {
+    blackjackStand.addEventListener('click', blackjackStandHand);
+  }
+
+  if (blackjackReset) {
+    blackjackReset.addEventListener('click', resetBlackjack);
+  }
+
+  if (cubeFind) {
+    cubeFind.addEventListener('click', cubeFindAction);
+  }
+
+  if (cubeCharge) {
+    cubeCharge.addEventListener('click', cubeChargeAction);
+  }
+
+  if (cubeInspect) {
+    cubeInspect.addEventListener('click', cubeInspectAction);
+  }
+
+  if (cubeDance) {
+    cubeDance.addEventListener('click', cubeDanceAction);
   }
 
   if (vectorSheet) {
@@ -999,6 +1326,7 @@
     document.body.classList.add('matrix-mode');
     initQuote();
     renderVectorSheet();
+    resetBlackjack();
     updateClock();
     setInterval(updateClock, 1000);
     setMouth('neutral');
