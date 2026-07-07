@@ -34,7 +34,10 @@
     <!-- Top bar -->
     <header class="topbar">
       <div class="mood-pill" id="moodPill">🌙 Night</div>
-      <button class="cam-btn" id="camToggle" title="Toggle camera">📷</button>
+      <div class="topbar-actions">
+        <button class="vector-btn" id="vectorBtn" title="Show Vector functions">Vector</button>
+        <button class="cam-btn" id="camToggle" title="Toggle camera">📷</button>
+      </div>
     </header>
 
     <!-- Clock -->
@@ -84,6 +87,27 @@
       <span class="dot" id="statusDot"></span>
     </footer>
   </main>
+
+  <!-- Vector capabilities drawer -->
+  <section id="vectorSheet" class="vector-sheet" aria-hidden="true">
+    <div class="vector-sheet__backdrop" data-vector-close></div>
+    <div class="vector-sheet__panel" role="dialog" aria-modal="true" aria-labelledby="vectorSheetTitle">
+      <div class="vector-sheet__header">
+        <div>
+          <p class="vector-sheet__eyebrow">Anki Vector reference</p>
+          <h2 id="vectorSheetTitle">Vector capabilities</h2>
+        </div>
+        <button class="vector-sheet__close" type="button" data-vector-close aria-label="Close Vector capabilities">✕</button>
+      </div>
+
+      <p class="vector-sheet__intro">
+        A compact map of what Vector can do: voice commands, SDK modules, and the main object model.
+      </p>
+
+      <div class="vector-actions" id="vectorActions"></div>
+      <div class="vector-categories" id="vectorCategories"></div>
+    </div>
+  </section>
 
   <!-- MediaPipe (loaded async, non-blocking) -->
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4.1633559619/face_mesh.js" crossorigin="anonymous" defer></script>

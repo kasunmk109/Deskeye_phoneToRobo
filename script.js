@@ -24,6 +24,10 @@
   const pupilR       = $('pupilR');
   const eyeL         = $('eyeL');
   const eyeR         = $('eyeR');
+  const vectorBtn    = $('vectorBtn');
+  const vectorSheet  = $('vectorSheet');
+  const vectorActions = $('vectorActions');
+  const vectorCategories = $('vectorCategories');
   const camToggle    = $('camToggle');
   const video        = $('cam');
 
@@ -97,6 +101,75 @@
     "Build something you believe in."
   ];
 
+  const VECTOR_QUICK_ACTIONS = [
+    { id: 'greet', label: 'Greet', icon: '👋' },
+    { id: 'time', label: 'Time', icon: '🕒' },
+    { id: 'weather', label: 'Weather', icon: '🌦' },
+    { id: 'photo', label: 'Photo', icon: '📸' },
+    { id: 'dock', label: 'Dock', icon: '🧲' },
+    { id: 'explore', label: 'Explore', icon: '🗺️' },
+    { id: 'celebrate', label: 'Celebrate', icon: '🎆' },
+    { id: 'sleep', label: 'Sleep', icon: '💤' }
+  ];
+
+  const VECTOR_SECTIONS = [
+    {
+      title: 'Voice commands',
+      items: [
+        'Greetings and identity phrases',
+        'Weather and time queries',
+        'Set or cancel timers',
+        'Take photos',
+        'Move, turn, and look at you',
+        'Explore controls and navigation prompts',
+        'Sleep and dock commands',
+        'Praise, scolding, and personality replies',
+        'Cube-related actions',
+        'Music listening controls',
+        'Blackjack, fireworks, wheelstand, and celebration effects',
+        'Trivia-style question answering'
+      ]
+    },
+    {
+      title: 'SDK components',
+      items: [
+        'Animation',
+        'Audio',
+        'Behavior',
+        'Camera',
+        'Control',
+        'Event',
+        'Face',
+        'Motor',
+        'NavMap',
+        'Photo',
+        'Screen',
+        'Vision',
+        'World',
+        'Authentication',
+        'Object and event data types'
+      ]
+    },
+    {
+      title: 'Recognized objects',
+      items: [
+        'Charger',
+        'Light Cube',
+        'Custom objects',
+        'Faces'
+      ]
+    },
+    {
+      title: 'Practical meaning',
+      items: [
+        'Vector can see, hear, and recognize people and objects',
+        'It can move around the world and react to its environment',
+        'It can interact with its charger and cube',
+        'It can run SDK-driven behaviors and app-driven interactions'
+      ]
+    }
+  ];
+
   function initQuote() {
     state.currentQuoteIndex = Math.floor(Math.random() * QUOTES.length);
     setQuote(QUOTES[state.currentQuoteIndex]);
@@ -112,6 +185,75 @@
     state.currentQuoteIndex = (state.currentQuoteIndex + 1) % QUOTES.length;
     setQuote(QUOTES[state.currentQuoteIndex]);
     state.lastQuoteChange = Date.now();
+  }
+
+  function renderVectorSheet() {
+    if (vectorActions) {
+      vectorActions.innerHTML = VECTOR_QUICK_ACTIONS.map((action) => `
+        <button class="vector-action" type="button" data-vector-action="${action.id}">
+          <span class="vector-action__icon">${action.icon}</span>
+          <span class="vector-action__label">${action.label}</span>
+        </button>
+      `).join('');
+    }
+
+    if (vectorCategories) {
+      vectorCategories.innerHTML = VECTOR_SECTIONS.map((section) => `
+        <article class="vector-card">
+          <h3>${section.title}</h3>
+          <ul>
+            ${section.items.map((item) => `<li>${item}</li>`).join('')}
+          </ul>
+        </article>
+      `).join('');
+    }
+  }
+
+  function openVectorSheet() {
+    if (!vectorSheet) return;
+    vectorSheet.classList.add('open');
+    vectorSheet.setAttribute('aria-hidden', 'false');
+  }
+
+  function closeVectorSheet() {
+    if (!vectorSheet) return;
+    vectorSheet.classList.remove('open');
+    vectorSheet.setAttribute('aria-hidden', 'true');
+  }
+
+  function toggleVectorSheet() {
+    if (!vectorSheet) return;
+    if (vectorSheet.classList.contains('open')) closeVectorSheet();
+    else openVectorSheet();
+  }
+
+  function runVectorQuickAction(actionId) {
+    if (actionId === 'greet') {
+      showHello('Vector can greet, answer, and react to you.', 3200);
+      setMouth('smile');
+    } else if (actionId === 'time') {
+      showHello(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), 3000);
+    } else if (actionId === 'weather') {
+      showHello('Weather support includes time and forecast-style prompts.', 3000);
+      fetchWeather();
+    } else if (actionId === 'photo') {
+      showHello('Photo capture is part of Vector-style behavior.', 3000);
+      setMouth('smile');
+    } else if (actionId === 'dock') {
+      showHello('Docking and charging are core Vector actions.', 3000);
+      setMouth('neutral');
+    } else if (actionId === 'explore') {
+      showHello('Vector can explore and map its environment.', 3000);
+      setMouth('wide');
+    } else if (actionId === 'celebrate') {
+      showHello('Fireworks, blackjack, and wheelstand belong in the fun set.', 3500);
+      state.widenUntil = performance.now() + 700;
+      doBlink();
+      setMouth('laugh');
+    } else if (actionId === 'sleep') {
+      showHello('Sleep and pause behavior is part of Vector control.', 3000);
+      setMouth('sleep');
+    }
   }
 
   // --------------- Clock ---------------
@@ -360,6 +502,12 @@
   function handleVoiceCommand(transcript) {
     const normalized = transcript.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
 
+    if (/(what can you do|show vector|vector functions|vector capabilities|open vector|help me vector)/.test(normalized)) {
+      openVectorSheet();
+      showHello('Showing Vector capabilities', 2200);
+      return;
+    }
+
     if (/\btime\b/.test(normalized)) {
       showHello(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), 5000);
     }
@@ -371,6 +519,31 @@
       showHello('Hey there! 👋', 2000);
     }
   }
+
+  if (vectorBtn) {
+    vectorBtn.addEventListener('click', toggleVectorSheet);
+  }
+
+  if (vectorSheet) {
+    vectorSheet.addEventListener('click', (event) => {
+      const target = event.target;
+      if (target && target.matches('[data-vector-close]')) {
+        closeVectorSheet();
+        return;
+      }
+
+      const actionButton = target && target.closest ? target.closest('[data-vector-action]') : null;
+      if (actionButton) {
+        runVectorQuickAction(actionButton.getAttribute('data-vector-action'));
+      }
+    });
+  }
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+      closeVectorSheet();
+    }
+  });
   
   function fetchWeather() {
     if (!navigator.geolocation) {
@@ -598,6 +771,7 @@
   async function boot() {
     document.body.classList.add('matrix-mode');
     initQuote();
+    renderVectorSheet();
     updateClock();
     setInterval(updateClock, 1000);
     setMouth('neutral');

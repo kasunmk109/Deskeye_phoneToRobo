@@ -56,6 +56,17 @@ Then open `http://localhost:8000`.
 - **Recommendation:** Keep phone plugged in during desk sessions
 - **Power saving:** Disable camera when not needed (tap 📷 button)
 
+## Vector Capabilities
+
+DeskEye now includes a Vector reference drawer that groups the robot's main functions into four areas:
+
+- **Voice commands:** greetings, identity, weather and time, timers, photos, movement, looking around, exploring, sleep, docking, praise/scolding, cube actions, music, blackjack, fireworks, wheelstand, and trivia-style answers.
+- **SDK components:** Animation, Audio, Behavior, Camera, Control, Event, Face, Motor, NavMap, Photo, Screen, Vision, World, Authentication, and the supporting object/event data types.
+- **Recognized objects:** charger, Light Cube, custom objects, and faces.
+- **Practical meaning:** Vector can see, hear, recognize people and objects, move around, interact with its charger and cube, and run SDK-driven behaviors.
+
+The app also exposes a few quick actions for the most common Vector-style behaviors, and you can open the drawer by tapping **Vector** in the top bar or saying a phrase like “what can you do”.
+
 ---
 
 ## 🐛 Troubleshooting
