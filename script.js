@@ -644,6 +644,14 @@
     vectorSheet.setAttribute('aria-hidden', 'false');
   }
 
+  function openTimerPanel() {
+    openVectorSheet();
+    if (vectorTimerInput) {
+      setTimeout(() => vectorTimerInput.focus(), 50);
+    }
+    addVectorLog('Timer panel opened');
+  }
+
   function closeVectorSheet() {
     if (!vectorSheet) return;
     vectorSheet.classList.remove('open');
@@ -658,11 +666,16 @@
 
   function runVectorQuickAction(actionId) {
     if (actionId === 'greet') {
-      showHello('Vector can greet, answer, and react to you.', 3200);
+      const message = 'Hi, I am DeskEye and I can greet, answer, and react to you.';
+      showHello(message, 3200);
+      speak(message);
       setMouth('smile');
     } else if (actionId === 'time') {
-      showHello(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), 3000);
+      const timeText = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      showHello(timeText, 3000);
+      speak(`The time is ${timeText}`);
     } else if (actionId === 'timer') {
+      openTimerPanel();
       startVectorTimer(getTimerDurationMs());
     } else if (actionId === 'photo') {
       captureVectorPhoto();
@@ -681,7 +694,9 @@
     } else if (actionId === 'celebrate') {
       triggerFireworks();
     } else if (actionId === 'sleep') {
-      showHello('Sleep and pause behavior is part of Vector control.', 3000);
+      const message = 'Going to sleep now.';
+      showHello(message, 3000);
+      speak(message);
       setMouth('sleep');
     }
   }
@@ -826,6 +841,18 @@
     helloEl.classList.add('show');
     state.helloUntil = performance.now() + durationMs;
   }
+  function speak(text) {
+    if (!('speechSynthesis' in window)) return;
+    try {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = 'en-US';
+      utterance.rate = 1.02;
+      utterance.pitch = 1.15;
+      utterance.volume = 1;
+      window.speechSynthesis.speak(utterance);
+    } catch {}
+  }
   function tickHello() {
     if (state.helloUntil && performance.now() > state.helloUntil) {
       helloEl.classList.remove('show');
@@ -949,22 +976,33 @@
 
     if (/(what can you do|show vector|vector functions|vector capabilities|open vector|help me vector)/.test(normalized)) {
       openVectorSheet();
-      showHello('Showing Vector capabilities', 2200);
+      showHello('Showing my assistant commands', 2200);
+      speak('Showing my assistant commands.');
+      return;
+    }
+
+    if (/\b(timer|set timer|open timer)\b/.test(normalized)) {
+      openTimerPanel();
+      showHello('Timer ready', 2000);
+      speak('Timer ready.');
       return;
     }
 
     if (/\b(blackjack|deal blackjack|play blackjack)\b/.test(normalized)) {
       startBlackjackGame();
+      speak('Starting blackjack.');
       return;
     }
 
     if (/\b(fireworks|celebrate|celebration)\b/.test(normalized)) {
       triggerFireworks();
+      speak('Fireworks.');
       return;
     }
 
     if (/\b(wheelstand|wheel stand)\b/.test(normalized)) {
       triggerWheelstand();
+      speak('Wheelstand mode.');
       return;
     }
 
@@ -982,31 +1020,38 @@
       clearVectorTimer();
       addVectorLog('Timer canceled');
       showHello('Timer canceled', 2000);
+      speak('Timer canceled.');
       return;
     }
 
     if (/\b(take photo|capture photo|snap photo)\b/.test(normalized)) {
       captureVectorPhoto();
+      speak('Photo captured.');
       return;
     }
 
     if (/\b(dock|undock)\b/.test(normalized)) {
       toggleDockMode();
+      speak(state.docked ? 'Dock mode on.' : 'Dock mode off.');
       return;
     }
 
     if (/\b(explore|wander|look around)\b/.test(normalized)) {
       startExploreMode();
+      speak('Exploring now.');
       return;
     }
 
     if (/\b(cube|light cube|charger|custom object|object)\b/.test(normalized)) {
       cubeFindAction();
+      speak('Checking the cube and nearby objects.');
       return;
     }
 
     if (/\btime\b/.test(normalized)) {
-      showHello(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), 5000);
+      const timeText = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      showHello(timeText, 5000);
+      speak(`The time is ${timeText}`);
     }
     else if (/\b(weather|forecast|temperature|rain|sunny|cloudy)\b/.test(normalized)) {
       showHello('Fetching weather...', 2000);
@@ -1015,10 +1060,6 @@
     else if (/\b(hello|hi|hey)\b/.test(normalized)) {
       showHello('Hey there! 👋', 2000);
     }
-  }
-
-  if (vectorBtn) {
-    vectorBtn.addEventListener('click', toggleVectorSheet);
   }
 
   if (vectorTimerStart) {
